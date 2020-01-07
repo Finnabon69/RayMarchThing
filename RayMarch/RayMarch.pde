@@ -1,16 +1,29 @@
-int MaxSteps = 1000;
-float MaxDistance = 50;
-float SurfaceDistance = .01;
-PVector CamPos = new PVector(0, 1, -3.5);
+int MaxSteps = 100;
+float MaxDistance = 10;
+float SurfaceDistance = .0001;
+PVector CamPos = new PVector(0, 1, -7);
 PVector CamRot = new PVector(0, 0, 0);
 PVector CurrentMarchPoint = new PVector(0, 1, 0);
 PVector LightDir = new PVector(.5, -1, -.5);
 float CamDepth = .5;
-int PixelSkip = 5;
+int PixelSkip = 6;
+
+class ObjectInfo
+{
+  color Color;
+  float Distance;
+  
+  public ObjectInfo(float Dist, color C)
+  {
+    Distance = Dist;
+    Color = C;
+  }
+}
+
 abstract class RenderObject
 {
   public PVector Position;
-  public color Color;
+  public color Color = color(128);
   public float Distance(PVector Pos)
   {
     println("Trying to get the distance to an empty renderobject.");
@@ -30,19 +43,30 @@ class Sphere extends RenderObject
 
   public float Distance(PVector Pos)
   {
-    return (PVector.dist(Pos, super.Position) - Radius);
+    return (PVector.dist(Pos /*new PVector(Pos.x % 1.0, Pos.y % 1.0, Pos.z % 2)*/, super.Position) - Radius);
   }
 }
 
-class XZPlane extends RenderObject
+class Plane extends RenderObject
 {
-  public XZPlane(float YPos)
+  PVector Normal = new PVector(.4, 1, -.5);
+  public Plane(float YPos)
   {
     super.Position = new PVector(0, YPos, 0);
   }
   public float Distance(PVector Pos)
   {
-    return(abs(super.Position.y - Pos.y));
+    
+    if ((int)Pos.z % 2.0 == 0 && (int)Pos.x % 2.0 == 0)
+    {
+      super.Color = color(255, 0, 0);
+    }
+    else
+    {
+      super.Color = color(128, 0, 128);
+    }
+    
+    return(PVector.dot(Pos, Normal.normalize()));
   }
 }
 
@@ -66,54 +90,64 @@ class InfCylinder extends RenderObject
     Radius = Rad;
     super.Position = Pos;
   }
-  
+
   public float Distance(PVector Pos)
   {
-    return (PVector.dist(Pos, new PVector(super.Position.x, super.Position.y, Pos.z)) - Radius);
+    return PVector.dist(Pos, new PVector(Pos.x, super.Position.y, super.Position.z)) - Radius;
   }
 }
 
-RenderObject[] SceneObjects = {new XZPlane(0), new Sphere(1, new PVector(0, 1, -1), color(255, 0, 0)), new InfCylinder(new PVector(2, 1, 0), .3)};
+RenderObject[] SceneObjects = {new Plane(0), new Sphere(.4, new PVector(0, 1, 0), color(0, 0, 255))};
 
-float DistanceArray()
+ObjectInfo DistanceArray()
 {
   float[] OutArray = new float[SceneObjects.length];
+  float LowestDistance = 999998999;
+  int LowestIndex = 0;
   for (int Index = 0; Index < SceneObjects.length; Index++)
   {
-    OutArray[Index] = SceneObjects[Index].Distance(CurrentMarchPoint);
+    //OutArray[Index] = SceneObjects[Index].Distance(CurrentMarchPoint);
+    float CurrentDistance = SceneObjects[Index].Distance(CurrentMarchPoint);
+    if (CurrentDistance < LowestDistance)
+    {
+      LowestDistance = CurrentDistance;
+      LowestIndex = Index;
+    }
   }
-  //println("Got Distances");
-  return (min(OutArray));
+  return (new ObjectInfo(LowestDistance, SceneObjects[LowestIndex].Color));
 }
 
 void setup()
 {
   noSmooth();
   rectMode(CORNER);
-  colorMode(HSB);
+  //colorMode(HSB);
   background(0);
-  size(1000, 1000); 
+  size(1000, 1000);
   frameRate(60);
 }
 
-float March(PVector Dir, PVector StartPos, float SurfaceDist, float MaxDist)
+ObjectInfo March(PVector Dir, PVector StartPos, float SurfaceDist, float MaxDist, int MSteps)
 {
   CurrentMarchPoint = StartPos;
-  for (int Steps = 0; Steps < MaxSteps; Steps++)
+  ObjectInfo Closest = new ObjectInfo(0, color(255));
+  for (int Steps = 0; Steps < MSteps; Steps++)
   {
-    CurrentMarchPoint = PVector.add(CurrentMarchPoint, PVector.mult(Dir, (DistanceArray() )));
+    Closest = DistanceArray();
+    CurrentMarchPoint = PVector.add(CurrentMarchPoint, PVector.mult(Dir, (Closest.Distance)));
+    Closest = DistanceArray();
     //if(Steps != 5)
-    if (DistanceArray() < SurfaceDist || PVector.dist(StartPos, CurrentMarchPoint) > MaxDist)
+    if (Closest.Distance < SurfaceDist || PVector.dist(StartPos, CurrentMarchPoint) > MaxDist)
     {
       break;
     }
   }
-  return (float)PVector.dist(StartPos, CurrentMarchPoint) / MaxDist * 255.0;
+  return new ObjectInfo((float)PVector.dist(StartPos, CurrentMarchPoint) / MaxDist, Closest.Color);
 }
 
 void draw()
 {
-  CamPos.add(new PVector(.05, .05, 0));
+  CamPos.add(new PVector(.1, 0, .1));
   //SceneObjects[1].Position.add(new PVector(0, -.05, 0));
   clear();
   //Main Drawing
@@ -124,10 +158,12 @@ void draw()
       PVector Direction = new PVector((X / (width / 2) - 1), (Y / (height / 2) - 1) * -1, CamDepth);
       Direction.add(CamRot);
       Direction.normalize();
-      float CamCol = (March(Direction, CamPos, SurfaceDistance, MaxDistance));
-      float LightCol = ((March(LightDir.mult(-1), CurrentMarchPoint, .00001, 1000)));
+      ObjectInfo Object = (March(Direction, CamPos, SurfaceDistance, MaxDistance, MaxSteps));
+      float CamCol = 1 - Object.Distance;
+      //float LightCol = ((March(LightDir.mult(-1), CurrentMarchPoint, .000001, 100, MaxSteps)));
       noStroke();
-      fill(color(255.0 - LightCol));
+      fill(color(CamCol * red(Object.Color), CamCol * green(Object.Color), CamCol * blue(Object.Color)));
+      //fill(c);
       rect(X, Y, PixelSkip, PixelSkip);
     }
   }
