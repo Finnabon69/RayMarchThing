@@ -6,8 +6,8 @@ PVector CamRot = new PVector(0, 0, 0);
 PVector CurrentMarchPoint = new PVector(0, 1, 0);
 PVector LightDir = new PVector(.5, -1, -.5);
 float CamDepth = .5;
-int PixelSkip = 6;
-
+int PixelSkip = 10;
+int Frames = 0;
 class ObjectInfo
 {
   color Color;
@@ -49,9 +49,10 @@ class Sphere extends RenderObject
 
 class Plane extends RenderObject
 {
-  PVector Normal = new PVector(.4, 1, -.5);
-  public Plane(float YPos)
+  public PVector Normal = new PVector();
+  public Plane(float YPos, PVector Norm)
   {
+    Normal = Norm;
     super.Position = new PVector(0, YPos, 0);
   }
   public float Distance(PVector Pos)
@@ -97,7 +98,7 @@ class InfCylinder extends RenderObject
   }
 }
 
-RenderObject[] SceneObjects = {new Plane(0), new Sphere(.4, new PVector(0, 1, 0), color(0, 0, 255))};
+RenderObject[] SceneObjects = {new Plane(0, new PVector(.5, 1, 0)), new Sphere(.4, new PVector(0, 1, 0), color(0, 0, 255))};
 
 ObjectInfo DistanceArray()
 {
@@ -147,9 +148,8 @@ ObjectInfo March(PVector Dir, PVector StartPos, float SurfaceDist, float MaxDist
 
 void draw()
 {
-  CamPos.add(new PVector(.1, 0, .1));
-  //SceneObjects[1].Position.add(new PVector(0, -.05, 0));
-  clear();
+  CamPos.add(new PVector(0, -.1, 0));
+  //SceneObjects[0].Normal.add(new PVector(0, -.05, 0));
   //Main Drawing
   for (float X = 0; X < width; X += PixelSkip)
   {  
@@ -167,5 +167,6 @@ void draw()
       rect(X, Y, PixelSkip, PixelSkip);
     }
   }
-  println("Frame Rendered");
+  Frames++;
+  println("Frame " + Frames +  " Rendered");
 }
